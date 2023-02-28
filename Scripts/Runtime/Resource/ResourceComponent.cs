@@ -11,6 +11,7 @@ using GameFramework.FileSystem;
 using GameFramework.ObjectPool;
 using GameFramework.Resource;
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace UnityGameFramework.Runtime
@@ -394,6 +395,17 @@ namespace UnityGameFramework.Runtime
         }
 
         /// <summary>
+        /// 获取使用时下载的等待更新资源数量。
+        /// </summary>
+        public int UpdateWaitingWhilePlayingCount
+        {
+            get
+            {
+                return m_ResourceManager.UpdateWaitingWhilePlayingCount;
+            }
+        }
+
+        /// <summary>
         /// 获取候选更新资源数量。
         /// </summary>
         public int UpdateCandidateCount
@@ -401,17 +413,6 @@ namespace UnityGameFramework.Runtime
             get
             {
                 return m_ResourceManager.UpdateCandidateCount;
-            }
-        }
-
-        /// <summary>
-        /// 获取正在更新资源数量。
-        /// </summary>
-        public int UpdatingCount
-        {
-            get
-            {
-                return m_ResourceManager.UpdatingCount;
             }
         }
 
@@ -611,12 +612,17 @@ namespace UnityGameFramework.Runtime
                 return;
             }
 
+            m_ResourceManager.ResourceVerifyStart += OnResourceVerifyStart;
+            m_ResourceManager.ResourceVerifySuccess += OnResourceVerifySuccess;
+            m_ResourceManager.ResourceVerifyFailure += OnResourceVerifyFailure;
+            m_ResourceManager.ResourceApplyStart += OnResourceApplyStart;
             m_ResourceManager.ResourceApplySuccess += OnResourceApplySuccess;
             m_ResourceManager.ResourceApplyFailure += OnResourceApplyFailure;
             m_ResourceManager.ResourceUpdateStart += OnResourceUpdateStart;
             m_ResourceManager.ResourceUpdateChanged += OnResourceUpdateChanged;
             m_ResourceManager.ResourceUpdateSuccess += OnResourceUpdateSuccess;
             m_ResourceManager.ResourceUpdateFailure += OnResourceUpdateFailure;
+            m_ResourceManager.ResourceUpdateAllComplete += OnResourceUpdateAllComplete;
 
             m_ResourceManager.SetReadOnlyPath(Application.streamingAssetsPath);
             if (m_ReadWritePathType == ReadWritePathType.TemporaryCache)
@@ -694,12 +700,6 @@ namespace UnityGameFramework.Runtime
                 m_PreorderUnloadUnusedAssets = false;
                 m_LastUnloadUnusedAssetsOperationElapseSeconds = 0f;
                 m_AsyncOperation = Resources.UnloadUnusedAssets();
-#if UNITY_EDITOR
-                if (m_EditorResourceMode)
-                {
-                    UnityEditor.EditorUtility.UnloadUnusedAssetsImmediate();
-                }
-#endif
             }
 
             if (m_AsyncOperation != null && m_AsyncOperation.isDone)
@@ -825,12 +825,31 @@ namespace UnityGameFramework.Runtime
         /// </summary>
         /// <param name="versionListLength">版本资源列表大小。</param>
         /// <param name="versionListHashCode">版本资源列表哈希值。</param>
-        /// <param name="versionListZipLength">版本资源列表压缩后大小。</param>
-        /// <param name="versionListZipHashCode">版本资源列表压缩后哈希值。</param>
+        /// <param name="versionListCompressedLength">版本资源列表压缩后大小。</param>
+        /// <param name="versionListCompressedHashCode">版本资源列表压缩后哈希值。</param>
         /// <param name="updateVersionListCallbacks">版本资源列表更新回调函数集。</param>
-        public void UpdateVersionList(int versionListLength, int versionListHashCode, int versionListZipLength, int versionListZipHashCode, UpdateVersionListCallbacks updateVersionListCallbacks)
+        public void UpdateVersionList(int versionListLength, int versionListHashCode, int versionListCompressedLength, int versionListCompressedHashCode, UpdateVersionListCallbacks updateVersionListCallbacks)
         {
-            m_ResourceManager.UpdateVersionList(versionListLength, versionListHashCode, versionListZipLength, versionListZipHashCode, updateVersionListCallbacks);
+            m_ResourceManager.UpdateVersionList(versionListLength, versionListHashCode, versionListCompressedLength, versionListCompressedHashCode, updateVersionListCallbacks);
+        }
+
+        /// <summary>
+        /// 使用可更新模式并校验资源。
+        /// </summary>
+        /// <param name="verifyResourcesCompleteCallback">使用可更新模式并校验资源完成时的回调函数。</param>
+        public void VerifyResources(VerifyResourcesCompleteCallback verifyResourcesCompleteCallback)
+        {
+            m_ResourceManager.VerifyResources(0, verifyResourcesCompleteCallback);
+        }
+
+        /// <summary>
+        /// 使用可更新模式并校验资源。
+        /// </summary>
+        /// <param name="verifyResourceLengthPerFrame">每帧至少校验资源的大小，以字节为单位。</param>
+        /// <param name="verifyResourcesCompleteCallback">使用可更新模式并校验资源完成时的回调函数。</param>
+        public void VerifyResources(int verifyResourceLengthPerFrame, VerifyResourcesCompleteCallback verifyResourcesCompleteCallback)
+        {
+            m_ResourceManager.VerifyResources(verifyResourceLengthPerFrame, verifyResourcesCompleteCallback);
         }
 
         /// <summary>
@@ -882,6 +901,14 @@ namespace UnityGameFramework.Runtime
         }
 
         /// <summary>
+        /// 停止更新资源。
+        /// </summary>
+        public void StopUpdateResources()
+        {
+            m_ResourceManager.StopUpdateResources();
+        }
+
+        /// <summary>
         /// 校验资源包。
         /// </summary>
         /// <param name="resourcePackPath">要校验的资源包路径。</param>
@@ -889,6 +916,24 @@ namespace UnityGameFramework.Runtime
         public bool VerifyResourcePack(string resourcePackPath)
         {
             return m_ResourceManager.VerifyResourcePack(resourcePackPath);
+        }
+
+        /// <summary>
+        /// 获取所有加载资源任务的信息。
+        /// </summary>
+        /// <returns>所有加载资源任务的信息。</returns>
+        public TaskInfo[] GetAllLoadAssetInfos()
+        {
+            return m_ResourceManager.GetAllLoadAssetInfos();
+        }
+
+        /// <summary>
+        /// 获取所有加载资源任务的信息。
+        /// </summary>
+        /// <param name="results">所有加载资源任务的信息。</param>
+        public void GetAllLoadAssetInfos(List<TaskInfo> results)
+        {
+            m_ResourceManager.GetAllLoadAssetInfos(results);
         }
 
         /// <summary>
@@ -1340,12 +1385,41 @@ namespace UnityGameFramework.Runtime
         }
 
         /// <summary>
-        /// 获取所有加载资源任务的信息。
+        /// 获取所有资源组。
         /// </summary>
-        /// <returns>所有加载资源任务的信息。</returns>
-        public TaskInfo[] GetAllLoadAssetInfos()
+        /// <returns>所有资源组。</returns>
+        public IResourceGroup[] GetAllResourceGroups()
         {
-            return m_ResourceManager.GetAllLoadAssetInfos();
+            return m_ResourceManager.GetAllResourceGroups();
+        }
+
+        /// <summary>
+        /// 获取所有资源组。
+        /// </summary>
+        /// <param name="results">所有资源组。</param>
+        public void GetAllResourceGroups(List<IResourceGroup> results)
+        {
+            m_ResourceManager.GetAllResourceGroups(results);
+        }
+
+        /// <summary>
+        /// 获取资源组集合。
+        /// </summary>
+        /// <param name="resourceGroupNames">要获取的资源组名称的集合。</param>
+        /// <returns>要获取的资源组集合。</returns>
+        public IResourceGroupCollection GetResourceGroupCollection(params string[] resourceGroupNames)
+        {
+            return m_ResourceManager.GetResourceGroupCollection(resourceGroupNames);
+        }
+
+        /// <summary>
+        /// 获取资源组集合。
+        /// </summary>
+        /// <param name="resourceGroupNames">要获取的资源组名称的集合。</param>
+        /// <returns>要获取的资源组集合。</returns>
+        public IResourceGroupCollection GetResourceGroupCollection(List<string> resourceGroupNames)
+        {
+            return m_ResourceManager.GetResourceGroupCollection(resourceGroupNames);
         }
 
         /// <summary>
@@ -1361,12 +1435,32 @@ namespace UnityGameFramework.Runtime
                 return;
             }
 
-            loadResourceAgentHelper.name = Utility.Text.Format("Load Resource Agent Helper - {0}", index.ToString());
+            loadResourceAgentHelper.name = Utility.Text.Format("Load Resource Agent Helper - {0}", index);
             Transform transform = loadResourceAgentHelper.transform;
             transform.SetParent(m_InstanceRoot);
             transform.localScale = Vector3.one;
 
             m_ResourceManager.AddLoadResourceAgentHelper(loadResourceAgentHelper);
+        }
+
+        private void OnResourceVerifyStart(object sender, GameFramework.Resource.ResourceVerifyStartEventArgs e)
+        {
+            m_EventComponent.Fire(this, ResourceVerifyStartEventArgs.Create(e));
+        }
+
+        private void OnResourceVerifySuccess(object sender, GameFramework.Resource.ResourceVerifySuccessEventArgs e)
+        {
+            m_EventComponent.Fire(this, ResourceVerifySuccessEventArgs.Create(e));
+        }
+
+        private void OnResourceVerifyFailure(object sender, GameFramework.Resource.ResourceVerifyFailureEventArgs e)
+        {
+            m_EventComponent.Fire(this, ResourceVerifyFailureEventArgs.Create(e));
+        }
+
+        private void OnResourceApplyStart(object sender, GameFramework.Resource.ResourceApplyStartEventArgs e)
+        {
+            m_EventComponent.Fire(this, ResourceApplyStartEventArgs.Create(e));
         }
 
         private void OnResourceApplySuccess(object sender, GameFramework.Resource.ResourceApplySuccessEventArgs e)
@@ -1397,6 +1491,11 @@ namespace UnityGameFramework.Runtime
         private void OnResourceUpdateFailure(object sender, GameFramework.Resource.ResourceUpdateFailureEventArgs e)
         {
             m_EventComponent.Fire(this, ResourceUpdateFailureEventArgs.Create(e));
+        }
+
+        private void OnResourceUpdateAllComplete(object sender, GameFramework.Resource.ResourceUpdateAllCompleteEventArgs e)
+        {
+            m_EventComponent.Fire(this, ResourceUpdateAllCompleteEventArgs.Create(e));
         }
     }
 }

@@ -76,7 +76,7 @@ namespace UnityGameFramework.Editor
                     }
                 }
 
-                m_ReadWritePathType.enumValueIndex = (int)(ReadWritePathType)EditorGUILayout.EnumPopup("Read Write Path Type", t.ReadWritePathType);
+                m_ReadWritePathType.enumValueIndex = (int)(ReadWritePathType)EditorGUILayout.EnumPopup("Read-Write Path Type", t.ReadWritePathType);
             }
             EditorGUI.EndDisabledGroup();
 
@@ -227,7 +227,7 @@ namespace UnityGameFramework.Editor
                         }
                     }
 
-                    int generateReadWriteVersionListLength = EditorGUILayout.DelayedIntField("Generate Read Write Version List Length", m_GenerateReadWriteVersionListLength.intValue);
+                    int generateReadWriteVersionListLength = EditorGUILayout.DelayedIntField("Generate Read-Write Version List Length", m_GenerateReadWriteVersionListLength.intValue);
                     if (generateReadWriteVersionListLength != m_GenerateReadWriteVersionListLength.intValue)
                     {
                         if (EditorApplication.isPlaying)
@@ -268,9 +268,9 @@ namespace UnityGameFramework.Editor
 
             if (EditorApplication.isPlaying && IsPrefabInHierarchy(t.gameObject))
             {
-                EditorGUILayout.LabelField("Unload Unused Assets", Utility.Text.Format("{0} / {1}", t.LastUnloadUnusedAssetsOperationElapseSeconds.ToString("F2"), t.MaxUnloadUnusedAssetsInterval.ToString("F2")));
-                EditorGUILayout.LabelField("Read Only Path", t.ReadOnlyPath.ToString());
-                EditorGUILayout.LabelField("Read Write Path", t.ReadWritePath.ToString());
+                EditorGUILayout.LabelField("Unload Unused Assets", Utility.Text.Format("{0:F2} / {1:F2}", t.LastUnloadUnusedAssetsOperationElapseSeconds, t.MaxUnloadUnusedAssetsInterval));
+                EditorGUILayout.LabelField("Read-Only Path", t.ReadOnlyPath.ToString());
+                EditorGUILayout.LabelField("Read-Write Path", t.ReadWritePath.ToString());
                 EditorGUILayout.LabelField("Current Variant", t.CurrentVariant ?? "<Unknwon>");
                 EditorGUILayout.LabelField("Applicable Game Version", isEditorResourceMode ? "N/A" : t.ApplicableGameVersion ?? "<Unknwon>");
                 EditorGUILayout.LabelField("Internal Resource Version", isEditorResourceMode ? "N/A" : t.InternalResourceVersion.ToString());
@@ -283,8 +283,8 @@ namespace UnityGameFramework.Editor
                     EditorGUILayout.LabelField("Apply Waiting Count", isEditorResourceMode ? "N/A" : t.ApplyWaitingCount.ToString());
                     EditorGUILayout.LabelField("Updating Resource Group", isEditorResourceMode ? "N/A" : t.UpdatingResourceGroup != null ? t.UpdatingResourceGroup.Name : "<Unknwon>");
                     EditorGUILayout.LabelField("Update Waiting Count", isEditorResourceMode ? "N/A" : t.UpdateWaitingCount.ToString());
+                    EditorGUILayout.LabelField("Update Waiting While Playing Count", isEditorResourceMode ? "N/A" : t.UpdateWaitingWhilePlayingCount.ToString());
                     EditorGUILayout.LabelField("Update Candidate Count", isEditorResourceMode ? "N/A" : t.UpdateCandidateCount.ToString());
-                    EditorGUILayout.LabelField("Updating Count", isEditorResourceMode ? "N/A" : t.UpdatingCount.ToString());
                 }
                 EditorGUILayout.LabelField("Load Total Agent Count", isEditorResourceMode ? "N/A" : t.LoadTotalAgentCount.ToString());
                 EditorGUILayout.LabelField("Load Free Agent Count", isEditorResourceMode ? "N/A" : t.LoadFreeAgentCount.ToString());
@@ -314,7 +314,7 @@ namespace UnityGameFramework.Editor
                                         data[index++] = "Load Asset Name,Serial Id,Priority,Status";
                                         foreach (TaskInfo loadAssetInfo in loadAssetInfos)
                                         {
-                                            data[index++] = Utility.Text.Format("{0},{1},{2},{3}", loadAssetInfo.Description, loadAssetInfo.SerialId.ToString(), loadAssetInfo.Priority.ToString(), loadAssetInfo.Status.ToString());
+                                            data[index++] = Utility.Text.Format("{0},{1},{2},{3}", loadAssetInfo.Description, loadAssetInfo.SerialId, loadAssetInfo.Priority, loadAssetInfo.Status);
                                         }
 
                                         File.WriteAllLines(exportFileName, data, Encoding.UTF8);
@@ -322,7 +322,7 @@ namespace UnityGameFramework.Editor
                                     }
                                     catch (Exception exception)
                                     {
-                                        Debug.LogError(Utility.Text.Format("Export load asset task CSV data to '{0}' failure, exception is '{1}'.", exportFileName, exception.ToString()));
+                                        Debug.LogError(Utility.Text.Format("Export load asset task CSV data to '{0}' failure, exception is '{1}'.", exportFileName, exception));
                                     }
                                 }
                             }
@@ -379,7 +379,7 @@ namespace UnityGameFramework.Editor
 
         private void DrawLoadAssetInfo(TaskInfo loadAssetInfo)
         {
-            EditorGUILayout.LabelField(loadAssetInfo.Description, Utility.Text.Format("[SerialId]{0} [Priority]{1} [Status]{2}", loadAssetInfo.SerialId.ToString(), loadAssetInfo.Priority.ToString(), loadAssetInfo.Status.ToString()));
+            EditorGUILayout.LabelField(loadAssetInfo.Description, Utility.Text.Format("[SerialId]{0} [Priority]{1} [Status]{2}", loadAssetInfo.SerialId, loadAssetInfo.Priority, loadAssetInfo.Status));
         }
 
         private void RefreshModes()
